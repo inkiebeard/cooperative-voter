@@ -1,7 +1,4 @@
-import { createHash } from "crypto";
-import { v4 as uuid } from "uuid";
-
-const hash = createHash("sha256");
+import { createHash, randomUUID } from "crypto";
 
 class Participant {
   private _id: string;
@@ -10,11 +7,10 @@ class Participant {
   private _passHash: string;
 
   constructor(name, email, pass) {
-    this._id = uuid();
-    this._name = name;
+    this._id = randomUUID();
+    this.name = name;
     this._email = email;
-    hash.update(pass);
-    this._passHash = hash.digest("hex");
+    this.pass = pass;
   }
 
   get pass () { return this._passHash }
@@ -23,6 +19,11 @@ class Participant {
   get id () { return this._id }
 
   set name (val) { this._name = val }
+  set pass (val) {
+    const hash = createHash("sha256");
+    hash.update(val);
+    this._passHash = hash.digest("hex");
+  }
 }
 
 export default Participant

@@ -1,19 +1,51 @@
-import Ledger from './ledger'
+import { randomUUID } from "crypto";
 import { IPollOption } from '../types'
 
 class Poll {
+  id: string
   question: string
   options: IPollOption[]
-  ledger: Ledger
 
-  constructor(question: string, options: IPollOption[], ledger: Ledger) {
+  constructor(question: string, options: string[]) {
+    this.id = randomUUID()
     this.question = question
-    this.options = options
-    this.ledger = ledger
+    this.options = new Array<IPollOption>()
+    options.forEach(option => {
+      this.options.push({
+        id: randomUUID(),
+        value: option
+      })
+    })
   }
 
-  vote(option: IPollOption, userId: string) {
-    this.ledger.addVote(option.id, userId)
+  addOption(option: string) {
+    this.options.push({
+      id: randomUUID(),
+      value: option
+    })
+  }
+
+  addOptions(options: string[]) {
+    options.forEach(option => {
+      this.addOption(option)
+    })
+  }
+
+  findOptionByValue(value: string) {
+    return this.options.find(option => option.value === value)
+  }
+
+  toString() {
+    const { id, question, options } = this
+    return JSON.stringify({ id, question, options })
+  }
+
+  static fromString(str: string) {
+    const { id, question, options } = JSON.parse(str)
+    const poll = new Poll(question, [])
+    poll.id = id
+    poll.options = options
+    return poll
   }
 }
 
