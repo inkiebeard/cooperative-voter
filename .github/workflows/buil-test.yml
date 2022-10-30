@@ -1,27 +1,27 @@
-name: Build & Test
+- name: Read .nvmrc
+    run: echo ::set-output name=NVMRC::$(cat .nvmrc)
+    id: nvm
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+- name: Build & Test
 
-jobs:
-  build-test:
+  on:
+    push:
+      branches: [ main ]
+    pull_request:
+      branches: [ main ]
 
-    runs-on: ubuntu-latest
+  jobs:
+    build-test:
 
-    strategy:
-      matrix:
-        node-version: [14.x, 16.x, 18.x]
+      runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm i yarn
-      - run: yarn
-      - run: yarn build
-      - run: yarn test
+      steps:
+        - uses: actions/checkout@v3
+        - name: Use Node.js ${{ steps.nvm.outputs.NVMRC }}
+          uses: actions/setup-node@v3
+          with:
+            node-version: ${{ steps.nvm.outputs.NVMRC }}
+        - run: npm i yarn
+        - run: yarn
+        - run: yarn build
+        - run: yarn test
