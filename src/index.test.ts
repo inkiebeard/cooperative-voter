@@ -1,5 +1,5 @@
 import { Poll, Ledger, Participant } from './index'
-import { secretGenerator, logger } from './utils'
+import { secretGenerator } from './utils'
 
 describe('basic test', () => {
   let poll, participant, ledger, jsonL, secret
