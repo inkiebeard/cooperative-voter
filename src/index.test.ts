@@ -25,6 +25,7 @@ describe('basic test', () => {
   it('should create a ledger', () => {
     ledger = new Ledger(secret, [])
     expect(ledger).toBeInstanceOf(Ledger)
+    expect(ledger.latestData.polls).toHaveLength(0)
   })
 
   it('should add a poll to the ledger', () => {
