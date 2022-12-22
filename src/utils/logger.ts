@@ -16,7 +16,7 @@ const LOG_COLOURS = {
     magenta: "\x1b[35m",
     cyan: "\x1b[36m",
     white: "\x1b[37m",
-    crimson: "\x1b[38m"
+    crimson: "\x1b[38m",
   },
   // Background colors
   bg: {
@@ -28,24 +28,39 @@ const LOG_COLOURS = {
     magenta: "\x1b[45m",
     cyan: "\x1b[46m",
     white: "\x1b[47m",
-    crimson: "\x1b[48m"
-  }
-}
+    crimson: "\x1b[48m",
+  },
+};
 
 const log = (msg, color?) => {
-  if (color) {
-    console.log(`${color}%s${LOG_COLOURS.reset}`, msg);
-  } else {
-    console.log(msg);
-  }
-}
+  let msgs = [];
 
-export {
-  LOG_COLOURS,
-  log
-}
+  switch (true) {
+    case typeof msg === "object":
+      if (Array.isArray(msg)) {
+        msgs = msg;
+      } else {
+        msgs = Object.keys(msg).map((key) => `${key}: ${msg[key]}`);
+      }
+      break;
+    case typeof msg === "string":
+    default:
+      msgs.push(msg);
+      break;
+  }
+
+  msgs.forEach((m) => {
+    if (color) {
+      console.log(`${color}%s${LOG_COLOURS.reset}`, (typeof m === 'string' ? m : JSON.stringify(m, null, 2)));
+    } else {
+      console.log(m);
+    }
+  });
+};
+
+export { LOG_COLOURS, log };
 
 export default {
   LOG_COLOURS,
-  log
-}
+  log,
+};

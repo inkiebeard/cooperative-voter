@@ -19,24 +19,23 @@ interface LedgerData {
 class Ledger {
   id: string;
   secret: string;
-  data: LedgerData[];
+  data: {
+    [index: number]: LedgerData;
+  };
 
   constructor(secret: string, polls = []) {
     this.id = randomUUID();
     this.secret = secret;
-    this.data = new Array<LedgerData>();
-    this.data.push({
-      polls,
-      votes: {},
-      extraData: {},
-      prevHash: "",
-      id: randomUUID(),
-    });
-    polls.forEach(poll => this.addPoll(poll))
+    this.data = {};
+
+    if (polls.length > 0) {
+      polls.forEach((poll) => this.addPoll(poll));
+    }
   }
 
   addVote(pollId: string, optionId: string, voter: Participant) {
-    const poll = this.latestData.polls.find((poll) => poll.id === pollId);
+    const newBlock = { ...this.latestData };
+    const poll = newBlock?.polls?.find((poll) => poll.id === pollId);
     if (!poll) {
       throw new Error("Poll not found");
     }
@@ -44,10 +43,14 @@ class Ledger {
     if (!option) {
       throw new Error("Option not found");
     }
-    const newBlock = {...this.latestData};
     const hash = createHmac("sha256", this.secret)
       .update(voter.id)
       .digest("hex");
+
+    if (!newBlock.votes) {
+      newBlock.votes = {};
+    }
+
     if (newBlock.votes[pollId]) {
       const vote = newBlock.votes[pollId];
       if (vote.voters.includes(hash)) {
@@ -68,63 +71,79 @@ class Ledger {
       };
     }
     if (!this.addBlock(newBlock)) {
-      logger.log('failed to add vote', logger.LOG_COLOURS.fg.crimson)
+      logger.log("failed to add vote", logger.LOG_COLOURS.fg.crimson);
       throw new Error("Failed to add vote");
     }
   }
 
   addPoll(poll: Poll) {
-    const newBlock = {...this.latestData};
-    if (!newBlock.polls.find((p) => p.id === poll.id)) {
+    const newBlock = { ...this.latestData };
+    if (!newBlock?.polls?.find((p) => p.id === poll.id)) {
+      if (!newBlock?.polls) {
+        newBlock.polls = [];
+      }
       newBlock.polls.push(poll);
       if (!this.addBlock(newBlock)) {
-        logger.log('failed to add poll', logger.LOG_COLOURS.fg.crimson)
+        logger.log("failed to add poll", logger.LOG_COLOURS.fg.crimson);
         throw new Error("Failed to add poll");
       }
-    } 
-    logger.log('poll already exists', logger.LOG_COLOURS.fg.yellow)
+    } else {
+      logger.log("poll already exists", logger.LOG_COLOURS.fg.yellow);
+    }
   }
 
   addExtraData(data: any) {
-    const newBlock = {...this.latestData};
+    const newBlock = { ...this.latestData } ?? ({} as LedgerData);
     newBlock.extraData = {
       ...newBlock.extraData,
       ...data,
     };
     if (!this.addBlock(newBlock)) {
-      logger.log('failed to add poll', logger.LOG_COLOURS.fg.crimson)
+      logger.log("failed to add poll", logger.LOG_COLOURS.fg.crimson);
       throw new Error("Failed to add poll");
     }
   }
 
   addBlock(newBlock: LedgerData): boolean {
     newBlock.id = randomUUID();
-    newBlock.prevHash = createHmac("sha256", this.secret).update(JSON.stringify(this.latestData)).digest("hex");
-    this.data.push(newBlock);
+    newBlock.prevHash = createHmac("sha256", this.secret)
+      .update(JSON.stringify(this.latestData ?? ({} as LedgerData)))
+      .digest("hex");
+    let newIndex = Object.values(this.data).length;
+    this.data[newIndex] = newBlock;
     if (this.validateChain()) {
       return true;
     } else {
-      logger.log('chain is invalid', logger.LOG_COLOURS.fg.crimson)
-      this.data.pop();
+      logger.log("chain is invalid", logger.LOG_COLOURS.fg.crimson);
+      delete this.data[newIndex];
       return false;
     }
   }
 
-
   get latestData() {
-    return this.data.at(-1);
+    return Object.values(this.data).at(-1) ?? ({} as LedgerData);
   }
 
   validateChain(): boolean {
+    if (global.DEBUG_VALIDATION) {
+      logger.log(
+        ["validating chain", this.$_debug_getBlockHashes()],
+        logger.LOG_COLOURS.fg.yellow
+      );
+    }
     // validate chain
-    const invalid = this.data.filter((block, index) => {
-      if (index !== 0) {
-        const prevBlock = this.data[index - 1];
-        const hash = createHmac("sha256", this.secret).update(JSON.stringify(prevBlock)).digest("hex");
-        return block.prevHash !== hash
-      }
-      return false;
-    });
+    const invalid = Object.keys(this.data)
+      .map((k) => this.data[k])
+      .filter((block, index) => {
+        if (index !== 0) {
+          const prevBlock = this.data[index - 1];
+          const hash = createHmac("sha256", this.secret)
+            .update(JSON.stringify(prevBlock))
+            .digest("hex");
+          return block.prevHash !== hash;
+        }
+        return false;
+      });
     return invalid.length === 0;
   }
 
@@ -133,16 +152,52 @@ class Ledger {
     return JSON.stringify(rest, null, 2);
   }
 
+  toJSON(): any {
+    const { secret, ...rest } = this;
+    return rest;
+  }
+
   static fromJSON(json: string, secret: string): Ledger {
-    const obj = JSON.parse(json);
+    let obj: any;
+
+    try {
+      obj = JSON.parse(json);
+    } catch (e) {
+      logger.log("Invalid ledger: invalid json", logger.LOG_COLOURS.fg.crimson);
+      throw new Error("Invalid ledger: invalid json, could not parse");
+    }
+
     const ledger = new Ledger(secret, []);
     ledger.data = obj.data;
     ledger.id = obj.id;
     if (ledger.validateChain()) {
       return ledger;
     }
-    logger.log('Invalid ledger: couldn\'t generate from json with given secret', logger.LOG_COLOURS.fg.crimson)
+    logger.log(
+      "Invalid ledger: couldn't generate from json with given secret",
+      logger.LOG_COLOURS.fg.crimson
+    );
     throw new Error("Invalid ledger");
+  }
+
+  // debugging utils todo: remove
+  $_debug_getBlockHashes() {
+    return Object.values(this.data).map((block, index, array) => {
+      let dynamicPrevHash =
+        index === 0
+          ? ""
+          : createHmac("sha256", this.secret)
+              .update(JSON.stringify(array[index - 1] ?? ""))
+              .digest("hex");
+      return {
+        prevHash: block.prevHash,
+        dynamicPrevHash,
+        myHash: createHmac("sha256", this.secret)
+          .update(JSON.stringify(block))
+          .digest("hex"),
+        doesMyPrevHashMatch: block.prevHash === dynamicPrevHash,
+      };
+    });
   }
 }
 
