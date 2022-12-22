@@ -33,7 +33,7 @@ const LOG_COLOURS = {
 };
 
 const log = (msg, color?) => {
-  let msgs = [];
+  let msgs: Array<any> = [];
 
   switch (true) {
     case typeof msg === "object":
